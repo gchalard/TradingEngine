@@ -25,6 +25,10 @@ class Broker(ABC):
         pass
 
 
+    @property
+    def returns(self) -> float:
+        return (self.current_capital - self.initial_capital) / self.initial_capital * 100
+
     def stats(self) -> None:
 
         table = Table(title="Broker stats")
@@ -32,11 +36,18 @@ class Broker(ABC):
         table.add_column("Metric", justify="right")
         table.add_column("Value", justify="left")
 
-        table.add_row("Initial capital", f"{self.initial_capital}")
-        table.add_row("Current capital", f"{self.current_capital}")
+        table.add_row("Initial capital", f"{self.initial_capital} €")
+        table.add_row("Current capital", f"{self.current_capital} €")
         table.add_row("Number of positions", f"{len(self.historical_positions)}")
         table.add_row("Current position", f"{self.current_position}")
-        table.add_row("Total fees", f"{self.historical_positions.cumulative_fees[-1]}")
+        table.add_row("Total fees", f"{self.historical_positions.cumulative_fees[-1]} €")
+        table.add_row("Return", f"{self.returns:.2f}%")
+        table.add_row("Win rate", f"{self.historical_positions.win_rate:.2f}%")
+        table.add_row("Average win", f"{self.historical_positions.average_win:.2f} €")
+        table.add_row("Average loss", f"{self.historical_positions.average_loss:.2f} €")
+        table.add_row("Expected return", f"{self.historical_positions.expected_return:.2f} €")
+        table.add_row("Std pnl", f"{self.historical_positions.std_pnl:.2f} €")
+        table.add_row("Sharpe ratio", f"{self.historical_positions.sharpe_ratio:.2f}")
 
         rprint(table)
 
