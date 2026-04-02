@@ -54,6 +54,9 @@ class Broker(ABC):
     def plot(self, closes: list[float] = None, timestamps: list[datetime] = None) -> None:
         fig = make_subplots(rows=1, cols=1, specs=[[{"secondary_y": True}]])
 
+        open_timestamps, close_timestamps = self.historical_positions.open_timestamps, self.historical_positions.exit_timestamps
+        open_prices, close_prices = self.historical_positions.open_prices, self.historical_positions.close_prices
+
         X = (
             timestamps if timestamps is not None else 
             list(range(len(closes))) if closes is not None else 
@@ -85,8 +88,16 @@ class Broker(ABC):
             yaxis={
                 "title": "Equity curve",
             }
-
         )
+
+        for o_t, c_t, o_p, c_p in zip(open_timestamps, close_timestamps, open_prices, close_prices):
+            fig.add_shape(
+                type="rect",
+                x0=o_t, x1=c_t,
+                y0=o_p, y1=c_p,
+                fillcolor="green" if o_p < c_p else "red",
+                opacity=0.1,
+            )
 
         if closes is not None:
             fig.add_trace(
