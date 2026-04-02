@@ -47,7 +47,7 @@ class Backtest(Broker):
     def disconnect(self) -> None:
         print("Disconnected from backtest broker")
 
-    def _at_market(self, price: float, quantity: float, side: Side) -> None:
+    def _at_market(self, price: float, quantity: float, side: Side, timestamp: datetime) -> None:
         if not self.current_position:
             self.current_position = Position(
                 side=side,
@@ -55,7 +55,7 @@ class Backtest(Broker):
                 open=PositionData(
                     price=self._compute_slippage(price),
                     fees=self._compute_fees(price, quantity, Fees.TAKER),
-                    timestamp=datetime.now(),
+                    timestamp=timestamp,
                 )
             )
             self.current_capital -= (self.current_position.open["price"] * self.current_position.quantity + self.current_position.open["fees"])
@@ -67,17 +67,17 @@ class Backtest(Broker):
             self.current_position.close = PositionData(
                 price=self._compute_slippage(price),
                 fees=self._compute_fees(price, quantity, Fees.TAKER),
-                timestamp=datetime.now(),
+                timestamp=timestamp,
             )
             self.current_position.status = PositionStatus.CLOSED
             self.current_capital += self.current_position.net_pnl
             self.historical_positions[-1] = self.current_position
             self.current_position = None
 
-    def buy_at_market(self, price: float, quantity: float) -> None:
-        self._at_market(price, quantity, Side.LONG)
+    def buy_at_market(self, price: float, quantity: float, timestamp: datetime) -> None:
+        self._at_market(price, quantity, Side.LONG, timestamp)
 
 
-    def sell_at_market(self, price: float, quantity: float) -> None:
+    def sell_at_market(self, price: float, quantity: float, timestamp: datetime) -> None:
 
-        self._at_market(price, quantity, Side.SHORT)
+        self._at_market(price, quantity, Side.SHORT, timestamp)
