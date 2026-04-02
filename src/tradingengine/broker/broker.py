@@ -97,7 +97,7 @@ class Broker(ABC):
                 x0=o_t, x1=c_t,
                 y0=o_p, y1=c_p,
                 fillcolor="green" if o_p < c_p else "red",
-                opacity=0.1,
+                opacity=0.25,
             )
 
         if closes is not None:
