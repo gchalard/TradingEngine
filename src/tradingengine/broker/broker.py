@@ -4,6 +4,8 @@ from plotly.subplots import make_subplots
 from dataclasses import dataclass, field
 from datetime import datetime
 
+import numpy as np
+
 from rich.table import Table
 from rich import print as rprint
 
@@ -29,6 +31,15 @@ class Broker(ABC):
     def returns(self) -> float:
         return (self.current_capital - self.initial_capital) / self.initial_capital * 100
 
+    @property
+    def drawdown(self) -> np.ndarray:
+        peak = np.maximum.accumulate(self.historical_positions.net_equity_curve)
+        return (self.historical_positions.net_equity_curve - peak) / peak * 100
+
+    @property
+    def max_drawdown(self) -> float:
+        return np.min(self.drawdown)
+
     def stats(self) -> None:
 
         table = Table(title="Broker stats")
@@ -45,6 +56,7 @@ class Broker(ABC):
         table.add_row("Win rate", f"{self.historical_positions.win_rate:.2f}%")
         table.add_row("Average win", f"{self.historical_positions.average_win:.2f} €")
         table.add_row("Average loss", f"{self.historical_positions.average_loss:.2f} €")
+        table.add_row("Max drawdown", f"{self.max_drawdown:.2f}%")
         table.add_row("Expected return", f"{self.historical_positions.expected_return:.2f} €")
         table.add_row("Std pnl", f"{self.historical_positions.std_pnl:.2f} €")
         table.add_row("Sharpe ratio", f"{self.historical_positions.sharpe_ratio:.2f}")
