@@ -27,6 +27,8 @@ class Broker(ABC):
         print(f"Number of positions: {len(self.historical_positions)}")
         print(f"Current position: {self.current_position}")
         print(f"Gross equity curve: {self.historical_positions.gross_equity_curve}")
+        print(f"Net equity curve: {self.historical_positions.net_equity_curve}")
+        print(f"Total fees: {self.historical_positions.cumulative_fees[-1]}")
 
     def plot(self, closes: list[float] = None, timestamps: list[datetime] = None) -> None:
         fig = make_subplots(rows=1, cols=1, specs=[[{"secondary_y": True}]])
@@ -47,11 +49,20 @@ class Broker(ABC):
             ),
         )
 
+        fig.add_trace(
+            go.Scatter(
+                x=self.historical_positions.exit_timestamps,
+                y=self.historical_positions.net_equity_curve,
+                name="Net equity curve",
+                yaxis="y1",
+            )
+        )
+
         fig.update_layout(
-            title="Gross equity curve",
+            title="Equity curve vs benchmark",
             xaxis_title="Timestamp" if timestamps is not None else "Index",
             yaxis={
-                "title": "Gross equity curve",
+                "title": "Equity curve",
             }
 
         )
