@@ -1,14 +1,21 @@
 from collections import deque
 from dataclasses import dataclass, field
+import sys
+from pathlib import Path
 
-from src.broker.backtest import Backtest
-from src.datasource.dataframe import DataFrame
-from src.event.event import Event
-from src.core import run
-from src.strategy.strategy import Strategy
+# Allow `python tests/stategy/mock.py` without PYTHONPATH or editable install.
+_root = Path(__file__).resolve().parents[2]
+for _p in (_root / "src", _root):
+    _s = str(_p)
+    if _s not in sys.path:
+        sys.path.insert(0, _s)
+
+from tradingengine.broker.backtest import Backtest
+from tradingengine.datasource.dataframe import DataFrame
+from tradingengine.event.event import Event
+from tradingengine.core import run
+from tradingengine.strategy.strategy import Strategy
 from tests.datasource.dataframe import _load_market_df
-
-import time
 
 import numpy as np
 

@@ -5,7 +5,7 @@ import pandas as pd
 import polars as pl
 import yfinance as yf
 
-from src.datasource.dataframe import DataFrame
+from tradingengine.datasource.dataframe import DataFrame
 
 
 def _load_market_df():

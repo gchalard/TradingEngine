@@ -1,4 +1,4 @@
-from src.event.event import Event, EventType
+from tradingengine.event.event import Event, EventType
 from datetime import datetime
 from typing import Literal, Optional, TypedDict
 

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from src.event.event import Event
+from tradingengine.event.event import Event
 
 
 class DataSource(ABC):

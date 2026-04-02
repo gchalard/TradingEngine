@@ -1,5 +1,5 @@
-from src.datasource.datasource import DataSource
-from src.event.tick import Tick
+from tradingengine.datasource.datasource import DataSource
+from tradingengine.event.tick import Tick
 
 import pandas as pd
 import polars as pl

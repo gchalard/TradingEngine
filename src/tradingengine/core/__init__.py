@@ -1,5 +1,5 @@
-from src.datasource.datasource import DataSource
-from src.strategy.strategy import Strategy
+from tradingengine.datasource.datasource import DataSource
+from tradingengine.strategy.strategy import Strategy
 
 def run(datasource: DataSource, strategy: Strategy) -> None:
     datasource.connect()

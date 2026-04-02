@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import random
 
-from src.broker.broker import Broker
+from tradingengine.broker.broker import Broker
 
 @dataclass
 class Backtest(Broker):
