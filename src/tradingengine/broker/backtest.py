@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 import random
@@ -14,8 +14,6 @@ from tradingengine.positions.position_data import PositionData
 
 @dataclass
 class Backtest(Broker):
-
-    initial_capital: float = 1_000
     
     current_position: Optional[Position] = field(default=None, init=False)
     current_capital: float = field(init=False)
@@ -58,7 +56,6 @@ class Backtest(Broker):
                     timestamp=timestamp,
                 )
             )
-            self.current_capital -= (self.current_position.open["price"] * self.current_position.quantity + self.current_position.open["fees"])
             self.historical_positions.append(self.current_position)
         elif self.current_position.side == side:
             print(f"Already in a {side.value} position")
