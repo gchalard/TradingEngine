@@ -32,6 +32,24 @@ class PositionsRegistry(list[Position]):
         ]
 
     @property
+    def open_timestamps(self) -> list[datetime]:
+        return [
+            position.open["timestamp"] for position in self if position.status == PositionStatus.CLOSED
+        ]
+
+    @property
+    def open_prices(self) -> list[float]:
+        return [
+            position.open["price"] for position in self if position.status == PositionStatus.CLOSED
+        ]
+
+    @property
+    def close_prices(self) -> list[float]:
+        return [
+            position.close["price"] for position in self if position.status == PositionStatus.CLOSED
+        ]
+
+    @property
     def win_rate(self) -> float:
         return np.mean([
             position.net_pnl > 0 for position in self if position.status == PositionStatus.CLOSED
