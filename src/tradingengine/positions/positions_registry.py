@@ -30,3 +30,36 @@ class PositionsRegistry(list[Position]):
         return [
             position.close["timestamp"] for position in self if position.status == PositionStatus.CLOSED
         ]
+
+    @property
+    def win_rate(self) -> float:
+        return np.mean([
+            position.net_pnl > 0 for position in self if position.status == PositionStatus.CLOSED
+        ])
+
+    @property
+    def average_win(self) -> float:
+        return np.mean([
+            position.net_pnl for position in self if position.net_pnl > 0 and position.status == PositionStatus.CLOSED
+        ])
+
+    @property
+    def average_loss(self) -> float:
+        return np.mean([
+            position.net_pnl for position in self if position.net_pnl < 0 and position.status == PositionStatus.CLOSED
+        ])
+
+
+    @property
+    def expected_return(self) -> float:
+        return self.win_rate * self.average_win - (1 - self.win_rate) * self.average_loss
+
+    @property
+    def std_pnl(self) -> float:
+        return np.std([
+            position.net_pnl for position in self if position.status == PositionStatus.CLOSED
+        ])
+
+    @property
+    def sharpe_ratio(self) -> float:
+        return self.expected_return / self.std_pnl
