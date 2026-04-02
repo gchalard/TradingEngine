@@ -3,14 +3,16 @@ from tradingengine.enums.position_status import PositionStatus
 
 from datetime import datetime
 
+import numpy as np
+
 
 class PositionsRegistry(list[Position]):
 
     @property
-    def gross_equity_curve(self) -> list[float]:
-        return [
+    def gross_equity_curve(self) -> np.ndarray:
+        return np.cumsum([
             (position.gross_pnl) for position in self if position.status == PositionStatus.CLOSED
-        ]
+        ])
 
     @property
     def exit_timestamps(self) -> list[datetime]:
