@@ -10,6 +10,7 @@ from tradingengine.positions.positions_registry import PositionsRegistry
 @dataclass
 class Broker(ABC):
 
+    initial_capital: float = 1_000
     historical_positions: PositionsRegistry = field(default_factory=PositionsRegistry)
 
     @abstractmethod
