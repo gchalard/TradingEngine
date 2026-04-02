@@ -9,6 +9,7 @@ dependencies = [
     "plotly>=6.6.0",
     "polars>=1.39.3",
     "pyarrow>=23.0.1",
+    "rich>=14.3.3",
     "yfinance>=1.2.0",
 ]
 

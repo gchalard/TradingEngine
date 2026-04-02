@@ -4,6 +4,9 @@ from plotly.subplots import make_subplots
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from rich.table import Table
+from rich import print as rprint
+
 
 from tradingengine.positions.positions_registry import PositionsRegistry
 
@@ -23,13 +26,19 @@ class Broker(ABC):
 
 
     def stats(self) -> None:
-        print(f"Initial capital: {self.initial_capital}")
-        print(f"Current capital: {self.current_capital}")
-        print(f"Number of positions: {len(self.historical_positions)}")
-        print(f"Current position: {self.current_position}")
-        print(f"Gross equity curve: {self.historical_positions.gross_equity_curve}")
-        print(f"Net equity curve: {self.historical_positions.net_equity_curve}")
-        print(f"Total fees: {self.historical_positions.cumulative_fees[-1]}")
+
+        table = Table(title="Broker stats")
+
+        table.add_column("Metric", justify="right")
+        table.add_column("Value", justify="left")
+
+        table.add_row("Initial capital", f"{self.initial_capital}")
+        table.add_row("Current capital", f"{self.current_capital}")
+        table.add_row("Number of positions", f"{len(self.historical_positions)}")
+        table.add_row("Current position", f"{self.current_position}")
+        table.add_row("Total fees", f"{self.historical_positions.cumulative_fees[-1]}")
+
+        rprint(table)
 
     def plot(self, closes: list[float] = None, timestamps: list[datetime] = None) -> None:
         fig = make_subplots(rows=1, cols=1, specs=[[{"secondary_y": True}]])
