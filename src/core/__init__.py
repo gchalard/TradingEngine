@@ -7,4 +7,4 @@ def run(datasource: DataSource, strategy: Strategy) -> None:
         event = datasource.get_event()
         strategy.onEvent(event)
         strategy.next()
-    datasource.disconnect()
+    strategy.onEvent({"type": "EOS"})
