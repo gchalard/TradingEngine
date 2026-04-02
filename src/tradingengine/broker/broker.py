@@ -31,8 +31,13 @@ class Broker(ABC):
     def plot(self, closes: list[float] = None, timestamps: list[datetime] = None) -> None:
         fig = make_subplots(rows=1, cols=1, specs=[[{"secondary_y": True}]])
 
-        X = timestamps if timestamps is not None else list(range(len(closes)))
+        X = (
+            timestamps if timestamps is not None else 
+            list(range(len(closes))) if closes is not None else 
+            list(range(len(self.historical_positions.gross_equity_curve)))
+        )
 
+        
         fig.add_trace(
             go.Scatter(
                 x=X,
