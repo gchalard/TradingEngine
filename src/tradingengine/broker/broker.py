@@ -37,7 +37,7 @@ class Broker(ABC):
             list(range(len(self.historical_positions.gross_equity_curve)))
         )
 
-        
+
         fig.add_trace(
             go.Scatter(
                 x=X,
@@ -56,7 +56,7 @@ class Broker(ABC):
 
         )
 
-        if closes:
+        if closes is not None:
             fig.add_trace(
                 go.Scatter(
                     x=X,
