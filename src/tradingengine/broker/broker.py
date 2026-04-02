@@ -40,7 +40,7 @@ class Broker(ABC):
 
         fig.add_trace(
             go.Scatter(
-                x=X,
+                x=self.historical_positions.exit_timestamps,
                 y=self.historical_positions.gross_equity_curve,
                 name="Gross equity curve",
                 yaxis="y1",
