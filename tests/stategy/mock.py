@@ -46,7 +46,7 @@ class MockStrategy(Strategy):
         if self.momentum_200 > 1:
             close = event["data"]["Close"]
             self.broker.buy_at_market(close, 1.0)
-        elif len(self.broker.current_position) > 0:
+        elif self.broker.current_position is not None:
             self.broker.sell_at_market(event["data"]["Close"], 1.0)
         else:
             pass
