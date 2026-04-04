@@ -70,7 +70,7 @@ class PositionsRegistry(list[Position]):
 
     @property
     def expected_return(self) -> float:
-        return self.win_rate * self.average_win - (1 - self.win_rate) * self.average_loss
+        return self.win_rate * self.average_win + (1 - self.win_rate) * self.average_loss
 
     @property
     def std_pnl(self) -> float:
