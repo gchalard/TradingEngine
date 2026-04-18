@@ -109,13 +109,13 @@ class Broker(ABC):
             }
         )
 
-        for o_t, c_t, o_p, c_p in zip(open_timestamps, close_timestamps, open_prices, close_prices):
+        for o_t, c_t, o_p, c_p, position in zip(open_timestamps, close_timestamps, open_prices, close_prices, self.historical_positions):
             fig.add_shape(
                 type="rect",
                 xref="x", yref="y2",
                 x0=o_t, x1=c_t,
                 y0=o_p, y1=c_p,
-                fillcolor="green" if o_p < c_p else "red",
+                fillcolor="green" if position.net_pnl > 0 else "red",
                 opacity=0.25,
             )
 
