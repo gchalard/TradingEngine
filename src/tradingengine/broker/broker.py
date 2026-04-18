@@ -1,3 +1,5 @@
+import warnings
+from typing import Optional
 from abc import ABC, abstractmethod
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -63,7 +65,12 @@ class Broker(ABC):
 
         rprint(table)
 
-    def plot(self, closes: list[float] = None, timestamps: list[datetime] = None) -> None:
+    def plot(self, closes: Optional[list[float]] = None, timestamps: Optional[list[datetime]] = None, regimes: Optional[list[float | int]] = None) -> None:
+
+        if regimes is not None and closes is None:
+            warnings.warn("regimes requires closes to be set, setting regimes to None")
+            regimes = None
+        
         fig = make_subplots(rows=1, cols=1, specs=[[{"secondary_y": True}]])
 
         open_timestamps, close_timestamps = self.historical_positions.open_timestamps, self.historical_positions.exit_timestamps
@@ -118,6 +125,11 @@ class Broker(ABC):
                     x=X,
                     y=closes,
                     name="Closes",
+                    mode="lines+markers",
+                    marker={
+                        "color": regimes,
+                        "colorscale": "Viridis",
+                    } if regimes is not None else None,
                     yaxis="y2",
                 ),
             )
