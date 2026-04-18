@@ -19,7 +19,15 @@ def run(
         event = datasource.get_event()
         strategy.onEvent(event)
         strategy.next()
-    strategy.onEvent({"type": "EOS", **kwargs})
+
+    eos_event: dict[str, Any] = {"type": "EOS", **kwargs}
+    if closes is not None:
+        eos_event["closes"] = closes
+    if timestamps is not None:
+        eos_event["timestamps"] = timestamps
+    if regimes is not None:
+        eos_event["regimes"] = regimes
+    strategy.onEvent(eos_event)
 
     broker = getattr(strategy, "broker", None)
     if broker is not None and plot and (
