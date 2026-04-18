@@ -1,5 +1,6 @@
 from tradingengine.positions.position import Position
 from tradingengine.enums.position_status import PositionStatus
+from tradingengine.enums.side import Side
 
 from datetime import datetime
 
@@ -7,7 +8,13 @@ import numpy as np
 
 
 class PositionsRegistry(list[Position]):
-
+    @property
+    def long_positions(self) -> "PositionsRegistry":
+        return PositionsRegistry([position for position in self if position.side == Side.LONG])
+    
+    @property
+    def short_positions(self) -> "PositionsRegistry":
+        return PositionsRegistry([position for position in self if position.side == Side.SHORT])
 
     @property
     def cumulative_fees(self) -> np.ndarray:
