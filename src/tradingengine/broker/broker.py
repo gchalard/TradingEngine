@@ -42,12 +42,14 @@ class Broker(ABC):
     def max_drawdown(self) -> float:
         return np.min(self.drawdown)
 
-    def stats(self) -> None:
+    def stats(self, benchmark: Optional[list[float]] = None) -> None:
 
         table = Table(title="Broker stats")
 
         table.add_column("Metric", justify="right")
         table.add_column("Value", justify="left")
+
+        benchmark_returns = (benchmark[-1] / benchmark[0]) - 1 if benchmark is not None else None
 
         table.add_row("Initial capital", f"{self.initial_capital} €")
         table.add_row("Current capital", f"{self.current_capital} €")
@@ -55,6 +57,7 @@ class Broker(ABC):
         table.add_row("Current position", f"{self.current_position}")
         table.add_row("Total fees", f"{self.historical_positions.cumulative_fees[-1]} €")
         table.add_row("Return", f"{self.returns:.2f}%")
+        table.add_row("Benchmark return", f"{benchmark_returns:.2f}%" if benchmark is not None else "N/A")
         table.add_row("Win rate", f"{self.historical_positions.win_rate:.2f}%")
         table.add_row("Average win", f"{self.historical_positions.average_win:.2f} €")
         table.add_row("Average loss", f"{self.historical_positions.average_loss:.2f} €")
