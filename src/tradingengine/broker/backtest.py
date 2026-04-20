@@ -17,6 +17,7 @@ class Backtest(Broker):
     
     current_position: Optional[Position] = field(default=None, init=False)
     current_capital: float = field(init=False)
+    verbose: bool = False
 
     fees: dict[Fees, float] = field(default_factory=dict)
     slippage: float = 1e-3
@@ -57,10 +58,11 @@ class Backtest(Broker):
                 )
             )
             self.historical_positions.append(self.current_position)
-        elif self.current_position.side == side:
+        elif self.current_position.side == side and self.verbose:
             print(f"Already in a {side.value} position")
         else:
-            print(f"Closing a {side.value} position")
+            if self.verbose:
+                print(f"Closing a {side.value} position")
             self.current_position.close = PositionData(
                 price=self._compute_slippage(price),
                 fees=self._compute_fees(price, quantity, Fees.TAKER),
