@@ -54,7 +54,7 @@ class Broker(ABC):
         table.add_row("Initial capital", f"{self.initial_capital} €")
         table.add_row("Current capital", f"{self.current_capital} €")
         table.add_row("Number of positions", f"{len(self.historical_positions)}")
-        table.add_row("Current position", f"{self.current_position}")
+        table.add_row("Current positions: \n", f"{self.current_positions}")
         table.add_row("Total fees", f"{self.historical_positions.cumulative_fees[-1]} €")
         table.add_row("Return", f"{self.returns:.2f}%")
         table.add_row("Benchmark return", f"{benchmark_returns:.2f}%" if benchmark is not None else "N/A")
