@@ -15,7 +15,7 @@ from tradingengine.positions.position_data import PositionData
 @dataclass
 class Backtest(Broker):
     
-    current_position: Optional[Position] = field(default=None, init=False)
+    current_positions: Optional[dict[str, list[Position]]] = field(default=None, init=False)
     current_capital: float = field(init=False)
     verbose: bool = False
 
@@ -46,37 +46,104 @@ class Backtest(Broker):
     def disconnect(self) -> None:
         print("Disconnected from backtest broker")
 
-    def _at_market(self, price: float, quantity: float, side: Side, timestamp: datetime) -> None:
-        if not self.current_position:
-            self.current_position = Position(
-                side=side,
-                quantity=quantity,
-                open=PositionData(
-                    price=self._compute_slippage(price),
-                    fees=self._compute_fees(price, quantity, Fees.TAKER),
-                    timestamp=timestamp,
+    def _at_market(self, price: float, quantity: float, side: Side, timestamp: datetime, ticker: Optional[str] = "default") -> None:
+        if self.current_positions is None or (self.current_positions.get(ticker) is None or len(self.current_positions[ticker]) == 0):
+            if self.current_positions is None:
+                self.current_positions = {
+                    ticker: [Position(
+                        ticker=ticker,
+                        side=side,
+                        quantity=quantity,
+                        open=PositionData(
+                            price=self._compute_slippage(price),
+                            fees=self._compute_fees(price, quantity, Fees.TAKER),
+                            timestamp=timestamp,
+                        )
+                    )]
+                }
+            elif self.current_positions.get(ticker) is None or len(self.current_positions[ticker]) == 0:
+                self.current_positions[ticker] = [Position(
+                        ticker=ticker,
+                        side=side,
+                        quantity=quantity,
+                        open=PositionData(
+                            price=self._compute_slippage(price),
+                            fees=self._compute_fees(price, quantity, Fees.TAKER),
+                            timestamp=timestamp,
+                        )
+                )]
+            debit = self.current_positions[ticker][-1].open["price"] * self.current_positions[ticker][-1].quantity + self.current_positions[ticker][-1].open["fees"]
+            self.current_capital -= debit
+
+            self.historical_positions.append(self.current_positions[ticker][-1])
+        elif self.current_positions[ticker][-1].side == side:
+            if self.verbose:
+                print(f"Adding to {side.value} position")
+            self.current_positions[ticker].append(
+                Position(
+                    ticker=ticker,
+                    side=side,
+                    quantity=quantity,
+                    open=PositionData(
+                        price=self._compute_slippage(price),
+                        fees=self._compute_fees(price, quantity, Fees.TAKER),
+                        timestamp=timestamp,
+                    ),
                 )
             )
-            self.historical_positions.append(self.current_position)
-        elif self.current_position.side == side and self.verbose:
-            print(f"Already in a {side.value} position")
+            pos = self.current_positions[ticker][-1]
+            debit = pos.open["price"] * pos.quantity + pos.open["fees"]
+            self.current_capital -= debit
+            self.historical_positions.append(pos)
         else:
+            positions_to_close = [
+                position for position in self.current_positions[ticker] if position.side != side and position.quantity <= quantity
+            ]
+
+            def quantity_to_close():
+                return sum([position.quantity for position in positions_to_close])
+
+            while quantity_to_close() > quantity:
+                positions_to_close.pop()
+
             if self.verbose:
-                print(f"Closing a {side.value} position")
-            self.current_position.close = PositionData(
-                price=self._compute_slippage(price),
-                fees=self._compute_fees(price, quantity, Fees.TAKER),
-                timestamp=timestamp,
-            )
-            self.current_position.status = PositionStatus.CLOSED
-            self.current_capital += self.current_position.net_pnl
-            self.historical_positions[-1] = self.current_position
-            self.current_position = None
+                if quantity_to_close() == quantity:
+                    print(f"Closing {Side.LONG.value.upper() if side == Side.SHORT else Side.SHORT.value.upper()} positions")
+                else:
+                    print(f"Closing {Side.LONG.value.upper() if side == Side.SHORT else Side.SHORT.value.upper()} positions and opening a new {Side.LONG.value.upper() if side == Side.SHORT else Side.SHORT.value.upper()} position")
+            
+            for position in positions_to_close:
+                closing_price = self._compute_slippage(price)
+                hist_idx = self.historical_positions.index(position)
+                position.close = PositionData(
+                    price=closing_price,
+                    fees=self._compute_fees(closing_price, position.quantity, Fees.TAKER),
+                    timestamp=timestamp,
+                )
+                position.status = PositionStatus.CLOSED
+                self.current_capital += position.net_pnl
+                self.historical_positions[hist_idx] = position
+                open_idx = self.current_positions[ticker].index(position)
+                self.current_positions[ticker].pop(open_idx)
 
-    def buy_at_market(self, price: float, quantity: float, timestamp: datetime) -> None:
-        self._at_market(price, quantity, Side.LONG, timestamp)
+            if len(self.current_positions[ticker]) == 0:
+                del self.current_positions[ticker]
+
+            if quantity_to_close() < quantity:
+                q_to_open = quantity - quantity_to_close()
+                self._at_market(
+                    price=price,
+                    quantity=q_to_open,
+                    side=Side.LONG if side == Side.SHORT else Side.SHORT,
+                    timestamp=timestamp,
+                    ticker=ticker,
+                )
 
 
-    def sell_at_market(self, price: float, quantity: float, timestamp: datetime) -> None:
 
-        self._at_market(price, quantity, Side.SHORT, timestamp)
+    def buy_at_market(self, price: float, quantity: float, timestamp: datetime, ticker: Optional[str] = "default") -> None:
+        self._at_market(price, quantity, Side.LONG, timestamp, ticker)
+
+
+    def sell_at_market(self, price: float, quantity: float, timestamp: datetime, ticker: Optional[str] = "default") -> None:
+        self._at_market(price, quantity, Side.SHORT, timestamp, ticker)
