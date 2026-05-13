@@ -23,3 +23,8 @@ pythonpath = ["src", "."]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/tradingengine"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
