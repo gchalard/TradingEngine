@@ -13,6 +13,7 @@ class Position:
     quantity: float
     open: PositionData
     status: PositionStatus = PositionStatus.OPEN
+    ticker: Optional[str] = None
     close: Optional[PositionData] = field(default=None, init=False)
 
     @property
