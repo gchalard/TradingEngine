@@ -1,3 +1,5 @@
+from tradingengine.types import UnivariateTimeseries
+from typing import Literal
 from tradingengine.positions.position import Position
 from tradingengine.enums.position_status import PositionStatus
 from tradingengine.enums.side import Side
@@ -6,8 +8,19 @@ from datetime import datetime
 
 import numpy as np
 
-
 class PositionsRegistry(list[Position]):
+    @property
+    def sorted_by_timestamp(self) -> "PositionsRegistry":
+        return PositionsRegistry(sorted(self, key=lambda x: x.open["timestamp"]))
+
+    @property
+    def open_positions(self) -> "PositionsRegistry":
+        return PositionsRegistry([position for position in self if position.status == PositionStatus.OPEN])
+
+    @property
+    def closed_positions(self) -> "PositionsRegistry":
+        return PositionsRegistry([position for position in self if position.status == PositionStatus.CLOSED])
+    
     @property
     def long_positions(self) -> "PositionsRegistry":
         return PositionsRegistry([position for position in self if position.side == Side.LONG])
@@ -15,6 +28,21 @@ class PositionsRegistry(list[Position]):
     @property
     def short_positions(self) -> "PositionsRegistry":
         return PositionsRegistry([position for position in self if position.side == Side.SHORT])
+
+    @property
+    def positions_by_ticker(self) -> dict[str, "PositionsRegistry"]:
+        tickers = list(set([position.ticker if position.ticker is not None else "default" for position in self]))
+        return {
+            ticker: PositionsRegistry([
+                position for position in self if position.ticker == ticker
+            ]) for ticker in tickers
+        }
+
+    @property
+    def cumulative_volume(self) -> np.array:
+        return np.cumsum([
+            position.quantity for position in self
+        ])
 
     @property
     def cumulative_fees(self) -> np.ndarray:
@@ -88,3 +116,49 @@ class PositionsRegistry(list[Position]):
     @property
     def sharpe_ratio(self) -> float:
         return self.expected_return / self.std_pnl
+
+    @property
+    def invested_capital(self) -> UnivariateTimeseries:
+        sorted_positions = self.sorted_by_timestamp
+
+        timestamps = sorted(list(set([position.open["timestamp"] for position in sorted_positions])))
+        values = np.cumsum(
+            [position.open["price"] * position.quantity for position in sorted_positions]
+        )
+
+        return {
+            timestamp: value for timestamp, value in zip(timestamps, values)
+        }
+
+
+    @property
+    def held_volume(self) -> list[dict[Literal["timestamp", "volume"], Literal[datetime, float]]]:
+        """
+        Compute the held volume at each timestamp. 
+        At timestamp t:
+        held_volume = sum(quantity of positions open at t)
+
+        Returns:
+            list of dictionaries with the following keys: "timestamp" and "volume", their values are the timestamp and the held volume at the timestamp respectively.
+        """
+        r =  [{
+            "timestamp": position.open["timestamp"],
+            "volume": position.quantity
+        } for position in self.open_positions]
+
+        cum_vol = np.cumsum([position.quantity for position in self.open_positions])
+
+        return [
+            {
+                "timestamp": r[i]["timestamp"],
+                "volume": float(cum_vol[i])
+            }
+            for i in range(len(cum_vol))
+        ]
+
+    @property
+    def held_volume_by_ticker(self) -> dict[str, list[dict[Literal["timestamp", "volume"], Literal[datetime, float]]]]:
+        return {
+            ticker: registry.held_volume
+            for ticker, registry in self.positions_by_ticker.items()
+        }
