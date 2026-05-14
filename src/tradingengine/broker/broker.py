@@ -241,7 +241,7 @@ class Broker(ABC):
             fig.add_trace(
                 go.Scatter(
                     x=ticker_ts["timestamps"],
-                    y=ticker_ts["values"],
+                    y=np.cumsum(ticker_ts["values"]),
                     name=ticker_ts["ticker"],
                     yaxis="y2",
                 )
