@@ -243,6 +243,9 @@ class Broker(ABC):
                     x=ticker_ts["timestamps"],
                     y=np.cumsum(ticker_ts["values"]),
                     name=ticker_ts["ticker"],
+                    line={
+                        "dash": "dash"
+                    },
                     yaxis="y2",
                 )
             )
