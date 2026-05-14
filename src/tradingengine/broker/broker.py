@@ -204,15 +204,17 @@ class Broker(ABC):
                     "values": [asset.get(ticker) for asset in assets if asset.get(ticker) is not None],
                 }
             )
+        tickers_ts = [x for x in tickers_ts if len(x["timestamps"]) > 0]
         tickers_ts = sorted(tickers_ts, key=lambda x: x["timestamps"][0])
 
         tickers_ts = [
             {
                 "ticker": ticker_ts["ticker"],
                 "timestamps": [ticker_ts["timestamps"][i] for i in range(1, len(ticker_ts["timestamps"]))],
-                "values": [np.log(ticker_ts["values"][i] / ticker_ts["values"][i-1]) for i in range(1, len(ticker_ts["values"]))]
+                "values": [np.log(ticker_ts["values"][i] / ticker_ts["values"][i-1]) for i in range(1, len(ticker_ts["values"]))],
             }
             for ticker_ts in tickers_ts
+            if len(ticker_ts["timestamps"]) >= 2
         ]
 
         fig = make_subplots(rows=1, cols=1, specs=[[{"secondary_y": True}]])
