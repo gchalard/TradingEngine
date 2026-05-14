@@ -26,5 +26,8 @@ packages = ["src/tradingengine"]
 
 [dependency-groups]
 dev = [
+    "jupyter>=1.1.1",
+    "polars>=1.39.3",
     "pytest>=9.0.3",
+    "yfinance>=1.2.0",
 ]

@@ -117,6 +117,3 @@ def test_multiple_positions():
     assert len(backtest.current_positions["AAPL"]) == 2
     assert backtest.current_positions.get("GOOG") is None
     assert backtest.current_capital < initial_capital - (2 * (100 - 1e-3 * 100))
-
-if __name__ == "__main__":
-    test_multiple_positions()
