@@ -64,13 +64,14 @@ class Broker(ABC):
             tickers = list(set([key for key in asset.keys() if key != "timestamp"]))
             values_at_timestamp = []
             for ticker in tickers:
-                matched_held_volumes = [
-                    held_volume for held_volume in held_volume_by_ticker[ticker] if held_volume["timestamp"] <= ts
-                ]
+                if ticker in held_volume_by_ticker.keys():
+                    matched_held_volumes = [
+                        held_volume for held_volume in held_volume_by_ticker[ticker] if held_volume["timestamp"] <= ts
+                    ]
 
-                vol_t = matched_held_volumes[-1]["volume"] if len(matched_held_volumes) > 0 else 0.
-                val_t = vol_t * asset[ticker]
-                values_at_timestamp.append(val_t)
+                    vol_t = matched_held_volumes[-1]["volume"] if len(matched_held_volumes) > 0 else 0.
+                    val_t = vol_t * asset[ticker]
+                    values_at_timestamp.append(val_t)
             r[ts] = sum(values_at_timestamp)
 
         return r
