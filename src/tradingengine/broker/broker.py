@@ -182,7 +182,7 @@ class Broker(ABC):
 
         fig.show()
 
-    def plot_porfolio_value(self, assets: MultivariateTimeseries, benchmark: Optional[UnivariateTimeseries] = None) -> None:
+    def plot_portfolio_value(self, assets: MultivariateTimeseries, benchmark: Optional[UnivariateTimeseries] = None) -> None:
         pf_value = self.portfolio_value(assets)
         invested_capital = self.historical_positions.invested_capital
 
