@@ -1,3 +1,4 @@
+from tradingengine.types import MultivariateTimeseries, UnivariateTimeseries
 import warnings
 from typing import Optional
 from abc import ABC, abstractmethod
@@ -41,6 +42,40 @@ class Broker(ABC):
     @property
     def max_drawdown(self) -> float:
         return np.min(self.drawdown)
+
+    def portfolio_value(self, assets: MultivariateTimeseries) -> UnivariateTimeseries:
+        """
+        Compute the cumulative portfolio value based on the held volumes at each timestamp and the price for each ticker.
+        At timestamp t:
+        portfolio_value = sum(held_volume_by_ticker_at_t * ticker_price_at_t for ticker in tickers)
+
+        Args:
+            assets: list of dictionaries with the following keys: "timestamp" and ticker, their values are the timestamp and the ticker price at the timestamp respectively.
+        
+        Returns:
+            UnivariateTimeseries with the following keys: "timestamp" and "value", their values are the timestamp and the portfolio value at the timestamp respectively.
+        """
+
+        held_volume_by_ticker = self.historical_positions.held_volume_by_ticker
+
+        r = {}
+        for asset in assets:
+            ts = asset["timestamp"]
+            tickers = list(set([key for key in asset.keys() if key != "timestamp"]))
+            values_at_timestamp = []
+            for ticker in tickers:
+                matched_held_volumes = [
+                    held_volume for held_volume in held_volume_by_ticker[ticker] if held_volume["timestamp"] <= ts
+                ]
+
+                vol_t = matched_held_volumes[-1]["volume"] if len(matched_held_volumes) > 0 else 0.
+                val_t = vol_t * asset[ticker]
+                values_at_timestamp.append(val_t)
+            r[ts] = sum(values_at_timestamp)
+
+        return r
+
+        
 
     def stats(self, benchmark: Optional[list[float]] = None) -> None:
 
@@ -144,5 +179,74 @@ class Broker(ABC):
                 secondary_y=True,
             )
 
+
+        fig.show()
+
+    def plot_porfolio_value(self, assets: MultivariateTimeseries, benchmark: Optional[UnivariateTimeseries] = None) -> None:
+        pf_value = self.portfolio_value(assets)
+        invested_capital = self.historical_positions.invested_capital
+
+        tickers = []
+        for asset in assets:
+            tickers.extend([key for key in asset.keys() if key != "timestamp"])
+        tickers = list(set(tickers))
+
+        tickers_ts = []
+        for ticker in tickers:
+            tickers_ts.append(
+                {
+                    "ticker": ticker,
+                    "timestamps": [asset["timestamp"] for asset in assets if asset.get(ticker) is not None],
+                    "values": [asset.get(ticker) for asset in assets if asset.get(ticker) is not None],
+                }
+            )
+        tickers_ts = sorted(tickers_ts, key=lambda x: x["timestamps"][0])
+
+        tickers_ts = [
+            {
+                "ticker": ticker_ts["ticker"],
+                "timestamps": [ticker_ts["timestamps"][i] for i in range(1, len(ticker_ts["timestamps"]))],
+                "values": [np.log(ticker_ts["values"][i] / ticker_ts["values"][i-1]) for i in range(1, len(ticker_ts["values"]))]
+            }
+            for ticker_ts in tickers_ts
+        ]
+
+        fig = make_subplots(rows=1, cols=1, specs=[[{"secondary_y": True}]])
+
+        fig.add_trace(
+            go.Scatter(
+                x=list(pf_value.keys()),
+                y=list(pf_value.values()),
+                name="Portfolio value",
+                yaxis="y1",
+            )
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=list(invested_capital.keys()),
+                y=list(invested_capital.values()),
+                name="Invested capital",
+                yaxis="y1",
+            )
+        )
+
+        for ticker_ts in tickers_ts:
+            fig.add_trace(
+                go.Scatter(
+                    x=ticker_ts["timestamps"],
+                    y=ticker_ts["values"],
+                    name=ticker_ts["ticker"],
+                    yaxis="y2",
+                )
+            )
+
+
+
+        fig.update_layout(
+            title="Portfolio value",
+            xaxis_title="Timestamp",
+            yaxis_title="Portfolio value",
+        )
 
         fig.show()
