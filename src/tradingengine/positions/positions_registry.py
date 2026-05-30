@@ -166,3 +166,20 @@ class PositionsRegistry(list[Position]):
             ticker: registry.held_volume
             for ticker, registry in self.positions_by_ticker.items()
         }
+
+    @property
+    def portfolio_weights(self) -> dict[str, float]:
+        open_positions = self.open_positions
+        per_ticker = open_positions.positions_by_ticker
+        per_ticker_invested_capital = {
+            ticker: sum([
+                position.open["price"] * position.quantity for position in positions
+            ])
+            for ticker, positions in per_ticker.items()
+        }
+        total_invested_capital = sum(per_ticker_invested_capital.values())
+        
+        return {
+            ticker: invested_capital / total_invested_capital
+            for ticker, invested_capital in per_ticker_invested_capital.items()
+        }
