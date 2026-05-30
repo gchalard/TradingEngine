@@ -190,6 +190,13 @@ class Broker(ABC):
         pf_value = self.portfolio_value(assets)
         invested_capital = self.historical_positions.invested_capital
 
+
+        def log_returns(timeseries: dict[str, list[datetime, float]]) -> dict[str, list[datetime, float]]:
+            return {
+                "timestamps": [timeseries["timestamps"][i] for i in range(1, len(timeseries["timestamps"]))],
+                "values": np.log([timeseries["values"][i] / timeseries["values"][i-1] for i in range(1, len(timeseries["values"]))])
+            }
+
         tickers = []
         for asset in assets:
             tickers.extend([key for key in asset.keys() if key != "timestamp"])
@@ -207,15 +214,33 @@ class Broker(ABC):
         tickers_ts = [x for x in tickers_ts if len(x["timestamps"]) > 0]
         tickers_ts = sorted(tickers_ts, key=lambda x: x["timestamps"][0])
 
-        tickers_ts = [
-            {
+        tickers_ts_with_returns = []
+        for ticker_ts in tickers_ts:
+            if len(ticker_ts["timestamps"]) < 2:
+                continue
+            returns = log_returns(ticker_ts)
+            tickers_ts_with_returns.append({
                 "ticker": ticker_ts["ticker"],
-                "timestamps": [ticker_ts["timestamps"][i] for i in range(1, len(ticker_ts["timestamps"]))],
-                "values": [np.log(ticker_ts["values"][i] / ticker_ts["values"][i-1]) for i in range(1, len(ticker_ts["values"]))],
-            }
-            for ticker_ts in tickers_ts
-            if len(ticker_ts["timestamps"]) >= 2
-        ]
+                **returns,
+                "cum_values": np.cumsum(returns["values"]).tolist(),
+            })
+        tickers_ts = tickers_ts_with_returns
+
+        # Mean of per-ticker cumulative log returns, aligned by timestamp
+        mean_timestamps = sorted({ts for ticker_ts in tickers_ts for ts in ticker_ts["timestamps"]})
+        mean_values = []
+        for ts in mean_timestamps:
+            values_at_ts = [
+                ticker_ts["cum_values"][ticker_ts["timestamps"].index(ts)]
+                for ticker_ts in tickers_ts
+                if ts in ticker_ts["timestamps"]
+            ]
+            mean_values.append(sum(values_at_ts) / len(values_at_ts))
+
+        mean_pf = {
+            "timestamps": mean_timestamps,
+            "values": mean_values,
+        }
 
         fig = make_subplots(rows=1, cols=1, specs=[[{"secondary_y": True}]])
 
@@ -225,6 +250,15 @@ class Broker(ABC):
                 y=list(pf_value.values()),
                 name="Portfolio value",
                 yaxis="y1",
+            )
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=list(mean_pf["timestamps"]),
+                y=list(mean_pf["values"]),
+                name="Mean portfolio value",
+                yaxis="y2",
             )
         )
 
@@ -241,7 +275,7 @@ class Broker(ABC):
             fig.add_trace(
                 go.Scatter(
                     x=ticker_ts["timestamps"],
-                    y=np.cumsum(ticker_ts["values"]),
+                    y=ticker_ts["cum_values"],
                     name=ticker_ts["ticker"],
                     line={
                         "dash": "dash"
@@ -250,7 +284,26 @@ class Broker(ABC):
                 )
             )
 
+        if benchmark is not None:
+            # 1. Convert benchmark from univariate timeseries (dict[datetime, float]) to multivariate timepoints (list[dict[str, datetime | float]])
+            benchmark = [{"timestamp": timestamp, "value": value} for timestamp, value in benchmark.items()]
 
+            # 2. Convert benchmark to dict[str, list[datetime, float]]
+            benchmark = {
+                "timestamps": [d["timestamp"] for d in benchmark],
+                "values": [d["value"] for d in benchmark],
+            }
+
+            benchmark = log_returns(benchmark)
+
+            fig.add_trace(
+                go.Scatter(
+                    x=list(benchmark["timestamps"]),
+                    y=list(benchmark["values"]),
+                    name="Benchmark",
+                    yaxis="y2",
+                )
+            )
 
         fig.update_layout(
             title="Portfolio value",
