@@ -161,9 +161,6 @@ class PositionsRegistry(list[Position]):
                 "volume": volume_t
             })
 
-        for i in range(1, len(r)):
-            r[i]["volume"] = r[i-1]["volume"] + r[i]["volume"]
-
         return r
 
     @property
