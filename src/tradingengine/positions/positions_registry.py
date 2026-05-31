@@ -62,7 +62,9 @@ class PositionsRegistry(list[Position]):
 
     @property
     def net_equity_curve(self) -> np.ndarray:
-        return self.gross_equity_curve - self.cumulative_fees
+        return np.cumsum([
+            position.net_pnl for position in self.closed_positions
+        ])
 
     @property
     def exit_timestamps(self) -> list[datetime]:
