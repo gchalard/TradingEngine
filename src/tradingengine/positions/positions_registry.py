@@ -145,20 +145,24 @@ class PositionsRegistry(list[Position]):
         Returns:
             list of dictionaries with the following keys: "timestamp" and "volume", their values are the timestamp and the held volume at the timestamp respectively.
         """
-        r =  [{
-            "timestamp": position.open["timestamp"],
-            "volume": position.quantity
-        } for position in self.open_positions]
+        timestamps = list(set([position.open["timestamp"] for position in self]))
+        timestamps.sort()
 
-        cum_vol = np.cumsum([position.quantity for position in self.open_positions])
+        r = []
+        for timestamp in timestamps:
+            open_positions_t = [
+                position for position in self if position.open["timestamp"] <= timestamp and (position.close is None or position.close["timestamp"] > timestamp)
+            ]
+            volume_t = sum([position.quantity for position in open_positions_t])
+            r.append({
+                "timestamp": timestamp,
+                "volume": volume_t
+            })
 
-        return [
-            {
-                "timestamp": r[i]["timestamp"],
-                "volume": float(cum_vol[i])
-            }
-            for i in range(len(cum_vol))
-        ]
+        for i in range(1, len(r)):
+            r[i]["volume"] = r[i-1]["volume"] + r[i]["volume"]
+
+        return r
 
     @property
     def held_volume_by_ticker(self) -> dict[str, list[dict[Literal["timestamp", "volume"], Literal[datetime, float]]]]:
@@ -178,7 +182,7 @@ class PositionsRegistry(list[Position]):
             for ticker, positions in per_ticker.items()
         }
         total_invested_capital = sum(per_ticker_invested_capital.values())
-        
+
         return {
             ticker: invested_capital / total_invested_capital
             for ticker, invested_capital in per_ticker_invested_capital.items()
