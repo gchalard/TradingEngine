@@ -30,3 +30,17 @@ class Position:
             return -self.open["fees"]
         assert self.close is not None
         return self.gross_pnl - (self.close["fees"] + self.open["fees"])
+
+    @property
+    def gross_proceeds(self) -> float:
+        if self.status == PositionStatus.OPEN:
+            return 0
+        assert self.close is not None
+        return self.close["price"] * self.quantity
+
+    @property
+    def net_proceeds(self) -> float:
+        if self.status == PositionStatus.OPEN:
+            return 0
+        assert self.close is not None
+        return self.gross_proceeds - (self.close["fees"] + self.open["fees"])
