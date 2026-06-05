@@ -125,20 +125,16 @@ class PositionsRegistry(list[Position]):
 
     @property
     def invested_capital(self) -> UnivariateTimeseries:
+        """Net cost basis currently deployed in open positions over time."""
         deltas_by_timestamp: dict[datetime, float] = {}
 
         for position in self:
+            cost_basis = position.open["price"] * position.quantity
             open_ts = position.open["timestamp"]
-            deltas_by_timestamp[open_ts] = (
-                deltas_by_timestamp.get(open_ts, 0)
-                + position.open["price"] * position.quantity
-            )
+            deltas_by_timestamp[open_ts] = deltas_by_timestamp.get(open_ts, 0) + cost_basis
             if position.status == PositionStatus.CLOSED and position.close is not None:
                 close_ts = position.close["timestamp"]
-                deltas_by_timestamp[close_ts] = (
-                    deltas_by_timestamp.get(close_ts, 0)
-                    - position.close["price"] * position.quantity
-                )
+                deltas_by_timestamp[close_ts] = deltas_by_timestamp.get(close_ts, 0) - cost_basis
 
         timestamps = sorted(deltas_by_timestamp.keys())
         values = np.cumsum([deltas_by_timestamp[ts] for ts in timestamps])
@@ -158,18 +154,23 @@ class PositionsRegistry(list[Position]):
         Returns:
             list of dictionaries with the following keys: "timestamp" and "volume", their values are the timestamp and the held volume at the timestamp respectively.
         """
-        timestamps = list(set([position.open["timestamp"] for position in self]))
-        timestamps.sort()
+        event_timestamps = set()
+        for position in self:
+            event_timestamps.add(position.open["timestamp"])
+            if position.status == PositionStatus.CLOSED and position.close is not None:
+                event_timestamps.add(position.close["timestamp"])
 
         r = []
-        for timestamp in timestamps:
+        for timestamp in sorted(event_timestamps):
             open_positions_t = [
-                position for position in self if position.open["timestamp"] <= timestamp and (position.close is None or position.close["timestamp"] > timestamp)
+                position for position in self
+                if position.open["timestamp"] <= timestamp
+                and (position.close is None or position.close["timestamp"] > timestamp)
             ]
-            volume_t = sum([position.quantity for position in open_positions_t])
+            volume_t = sum(position.quantity for position in open_positions_t)
             r.append({
                 "timestamp": timestamp,
-                "volume": volume_t
+                "volume": volume_t,
             })
 
         return r
