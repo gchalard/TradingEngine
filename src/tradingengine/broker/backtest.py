@@ -121,7 +121,7 @@ class Backtest(Broker):
                     timestamp=timestamp,
                 )
                 position.status = PositionStatus.CLOSED
-                self.current_capital += position.net_pnl
+                self.current_capital += position.net_proceeds
                 self.historical_positions[hist_idx] = position
                 open_idx = self.current_positions[ticker].index(position)
                 self.current_positions[ticker].pop(open_idx)
