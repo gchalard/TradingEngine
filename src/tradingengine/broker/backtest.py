@@ -17,7 +17,6 @@ class Backtest(Broker):
     
     current_positions: Optional[dict[str, list[Position]]] = field(default=None, init=False)
     current_capital: float = field(init=False)
-    _cash_events: list[tuple[datetime, float]] = field(default_factory=list, init=False)
     verbose: bool = False
 
     fees: dict[Fees, float] = field(default_factory=dict)
@@ -46,15 +45,6 @@ class Backtest(Broker):
 
     def disconnect(self) -> None:
         print("Disconnected from backtest broker")
-
-    def add_capital(self, amount: float, timestamp: datetime) -> None:
-        """Record a cash deposit (e.g. recurring investment) for portfolio history."""
-        self.current_capital += amount
-        self._cash_events.append((timestamp, amount))
-
-    def _record_cash_delta(self, timestamp: datetime, delta: float) -> None:
-        if delta != 0:
-            self._cash_events.append((timestamp, delta))
 
     def _at_market(
         self,

@@ -21,6 +21,8 @@ class Broker(ABC):
 
     initial_capital: float = 1_000
     historical_positions: PositionsRegistry = field(default_factory=PositionsRegistry)
+    _cash_events: list[tuple[datetime, float]] = field(default_factory=list, init=False)
+    _added_capital_events: list[tuple[datetime, float]] = field(default_factory=list, init=False)
 
     @abstractmethod
     def connect(self) -> None:
@@ -44,11 +46,31 @@ class Broker(ABC):
     def max_drawdown(self) -> float:
         return np.min(self.drawdown)
 
+    def add_capital(self, amount: float, timestamp: datetime) -> None:
+        """Record a cash deposit for portfolio history and invested-capital tracking."""
+        self._added_capital_events.append((timestamp, amount))
+        self._record_cash_delta(timestamp, amount)
+        self.current_capital += amount
+
+    def _record_cash_delta(self, timestamp: datetime, delta: float) -> None:
+        if delta != 0:
+            self._cash_events.append((timestamp, delta))
+
+    @property
+    def invested_capital(self) -> UnivariateTimeseries:
+        """Cumulative capital added via add_capital over time."""
+        deltas_by_timestamp: dict[datetime, float] = {}
+        for timestamp, amount in self._added_capital_events:
+            deltas_by_timestamp[timestamp] = deltas_by_timestamp.get(timestamp, 0) + amount
+
+        timestamps = sorted(deltas_by_timestamp.keys())
+        values = np.cumsum([deltas_by_timestamp[ts] for ts in timestamps])
+        return {timestamp: value for timestamp, value in zip(timestamps, values)}
+
     def _cash_at_timestamp(self, timestamp: datetime) -> float:
         cash = self.initial_capital
-        cash_events = getattr(self, "_cash_events", None)
-        if cash_events:
-            for event_ts, delta in sorted(cash_events, key=lambda event: event[0]):
+        if self._cash_events:
+            for event_ts, delta in sorted(self._cash_events, key=lambda event: event[0]):
                 if event_ts <= timestamp:
                     cash += delta
                 else:
@@ -264,7 +286,7 @@ class Broker(ABC):
 
     def plot_portfolio_value(self, assets: MultivariateTimeseries, benchmark: Optional[UnivariateTimeseries] = None) -> None:
         pf_value = self.portfolio_value(assets)
-        invested_capital = self.historical_positions.invested_capital
+        invested_capital = self.invested_capital
         asset_timestamps = [asset["timestamp"] for asset in assets]
         invested_capital_filled = self._forward_fill_timeseries(invested_capital, asset_timestamps)
         equal_weight = self._equal_weight_benchmark(assets, self.initial_capital)

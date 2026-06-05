@@ -1,4 +1,3 @@
-from tradingengine.types import UnivariateTimeseries
 from typing import Literal
 from tradingengine.positions.position import Position
 from tradingengine.enums.position_status import PositionStatus
@@ -122,27 +121,6 @@ class PositionsRegistry(list[Position]):
     @property
     def sharpe_ratio(self) -> float:
         return self.expected_return / self.std_pnl
-
-    @property
-    def invested_capital(self) -> UnivariateTimeseries:
-        """Net cost basis currently deployed in open positions over time."""
-        deltas_by_timestamp: dict[datetime, float] = {}
-
-        for position in self:
-            cost_basis = position.open["price"] * position.quantity
-            open_ts = position.open["timestamp"]
-            deltas_by_timestamp[open_ts] = deltas_by_timestamp.get(open_ts, 0) + cost_basis
-            if position.status == PositionStatus.CLOSED and position.close is not None:
-                close_ts = position.close["timestamp"]
-                deltas_by_timestamp[close_ts] = deltas_by_timestamp.get(close_ts, 0) - cost_basis
-
-        timestamps = sorted(deltas_by_timestamp.keys())
-        values = np.cumsum([deltas_by_timestamp[ts] for ts in timestamps])
-
-        return {
-            timestamp: value for timestamp, value in zip(timestamps, values)
-        }
-
 
     @property
     def held_volume(self) -> list[dict[Literal["timestamp", "volume"], Literal[datetime, float]]]:
