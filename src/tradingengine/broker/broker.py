@@ -14,6 +14,7 @@ from rich import print as rprint
 
 
 from tradingengine.positions.positions_registry import PositionsRegistry
+from tradingengine.enums.position_status import PositionStatus
 
 @dataclass
 class Broker(ABC):
@@ -43,41 +44,116 @@ class Broker(ABC):
     def max_drawdown(self) -> float:
         return np.min(self.drawdown)
 
+    def _cash_at_timestamp(self, timestamp: datetime) -> float:
+        cash = self.initial_capital
+        cash_events = getattr(self, "_cash_events", None)
+        if cash_events:
+            for event_ts, delta in sorted(cash_events, key=lambda event: event[0]):
+                if event_ts <= timestamp:
+                    cash += delta
+                else:
+                    break
+            return cash
+
+        for position in self.historical_positions:
+            if position.open["timestamp"] <= timestamp:
+                cash -= position.open["price"] * position.quantity + position.open["fees"]
+            if position.status == PositionStatus.CLOSED and position.close is not None:
+                if position.close["timestamp"] <= timestamp:
+                    cash += position.net_proceeds
+        return cash
+
+    def _holdings_value_at_timestamp(
+        self,
+        timestamp: datetime,
+        asset: dict,
+        held_volume_by_ticker: dict,
+    ) -> float:
+        tickers = [key for key in asset.keys() if key != "timestamp"]
+        values_at_timestamp = []
+        for ticker in tickers:
+            ticker_price_t = asset[ticker]
+            if ticker_price_t is None:
+                continue
+            if ticker not in held_volume_by_ticker:
+                continue
+            matched_held_volumes = [
+                held_volume
+                for held_volume in held_volume_by_ticker[ticker]
+                if held_volume["timestamp"] <= timestamp
+            ]
+            vol_t = matched_held_volumes[-1]["volume"] if matched_held_volumes else 0.0
+            values_at_timestamp.append(vol_t * ticker_price_t)
+        return sum(values_at_timestamp)
+
     def portfolio_value(self, assets: MultivariateTimeseries) -> UnivariateTimeseries:
         """
-        Compute the cumulative portfolio value based on the held volumes at each timestamp and the price for each ticker.
+        Compute net portfolio value (cash + mark-to-market holdings) at each asset timestamp.
+
         At timestamp t:
-        portfolio_value = sum(held_volume_by_ticker_at_t * ticker_price_at_t for ticker in tickers)
-
-        Args:
-            assets: list of dictionaries with the following keys: "timestamp" and ticker, their values are the timestamp and the ticker price at the timestamp respectively.
-        
-        Returns:
-            UnivariateTimeseries with the following keys: "timestamp" and "value", their values are the timestamp and the portfolio value at the timestamp respectively.
+        portfolio_value = cash(t) + sum(held_volume_by_ticker_at_t * ticker_price_at_t)
         """
-
         held_volume_by_ticker = self.historical_positions.held_volume_by_ticker
+        return {
+            asset["timestamp"]: (
+                self._cash_at_timestamp(asset["timestamp"])
+                + self._holdings_value_at_timestamp(
+                    asset["timestamp"],
+                    asset,
+                    held_volume_by_ticker,
+                )
+            )
+            for asset in assets
+        }
 
-        r = {}
+    @staticmethod
+    def _forward_fill_timeseries(
+        sparse: UnivariateTimeseries,
+        timestamps: list[datetime],
+    ) -> list[float]:
+        if not timestamps:
+            return []
+        if not sparse:
+            return [0.0] * len(timestamps)
+
+        sorted_sparse = sorted(sparse.items())
+        values: list[float] = []
+        sparse_idx = 0
+        current = 0.0
+        for timestamp in timestamps:
+            while sparse_idx < len(sorted_sparse) and sorted_sparse[sparse_idx][0] <= timestamp:
+                current = sorted_sparse[sparse_idx][1]
+                sparse_idx += 1
+            values.append(current)
+        return values
+
+    @staticmethod
+    def _equal_weight_benchmark(
+        assets: MultivariateTimeseries,
+        initial_value: float,
+    ) -> UnivariateTimeseries:
+        tickers: set[str] = set()
         for asset in assets:
-            ts = asset["timestamp"]
-            tickers = list(set([key for key in asset.keys() if key != "timestamp"]))
-            values_at_timestamp = []
+            tickers.update(key for key in asset.keys() if key != "timestamp")
+
+        first_prices: dict[str, float] = {}
+        for asset in assets:
             for ticker in tickers:
-                ticker_price_t = asset[ticker]
-                if ticker_price_t is None:
-                    continue
-                if ticker in held_volume_by_ticker.keys():
-                    matched_held_volumes = [
-                        held_volume for held_volume in held_volume_by_ticker[ticker] if held_volume["timestamp"] <= ts
-                    ]
+                price = asset.get(ticker)
+                if price is not None and ticker not in first_prices:
+                    first_prices[ticker] = price
 
-                    vol_t = matched_held_volumes[-1]["volume"] if len(matched_held_volumes) > 0 else 0.
-                    val_t = vol_t * ticker_price_t
-                    values_at_timestamp.append(val_t)
-            r[ts] = sum(values_at_timestamp)
-
-        return r
+        benchmark: UnivariateTimeseries = {}
+        for asset in assets:
+            timestamp = asset["timestamp"]
+            normalized = [
+                asset[ticker] / first_prices[ticker]
+                for ticker in tickers
+                if asset.get(ticker) is not None and ticker in first_prices
+            ]
+            if normalized:
+                benchmark[timestamp] = initial_value * sum(normalized) / len(normalized)
+        return benchmark
 
         
 
@@ -189,58 +265,35 @@ class Broker(ABC):
     def plot_portfolio_value(self, assets: MultivariateTimeseries, benchmark: Optional[UnivariateTimeseries] = None) -> None:
         pf_value = self.portfolio_value(assets)
         invested_capital = self.historical_positions.invested_capital
+        asset_timestamps = [asset["timestamp"] for asset in assets]
+        invested_capital_filled = self._forward_fill_timeseries(invested_capital, asset_timestamps)
+        equal_weight = self._equal_weight_benchmark(assets, self.initial_capital)
 
+        tickers = list({
+            key for asset in assets for key in asset.keys() if key != "timestamp"
+        })
 
-        def log_returns(timeseries: dict[str, list[datetime, float]]) -> dict[str, list[datetime, float]]:
-            return {
-                "timestamps": [timeseries["timestamps"][i] for i in range(1, len(timeseries["timestamps"]))],
-                "values": np.log([timeseries["values"][i] / timeseries["values"][i-1] for i in range(1, len(timeseries["values"]))])
-            }
-
-        tickers = []
+        first_prices: dict[str, float] = {}
         for asset in assets:
-            tickers.extend([key for key in asset.keys() if key != "timestamp"])
-        tickers = list(set(tickers))
+            for ticker in tickers:
+                price = asset.get(ticker)
+                if price is not None and ticker not in first_prices:
+                    first_prices[ticker] = price
 
         tickers_ts = []
         for ticker in tickers:
-            tickers_ts.append(
-                {
-                    "ticker": ticker,
-                    "timestamps": [asset["timestamp"] for asset in assets if asset.get(ticker) is not None],
-                    "values": [asset.get(ticker) for asset in assets if asset.get(ticker) is not None],
-                }
-            )
-        tickers_ts = [x for x in tickers_ts if len(x["timestamps"]) > 0]
-        tickers_ts = sorted(tickers_ts, key=lambda x: x["timestamps"][0])
-
-        tickers_ts_with_returns = []
-        for ticker_ts in tickers_ts:
-            if len(ticker_ts["timestamps"]) < 2:
+            timestamps = [asset["timestamp"] for asset in assets if asset.get(ticker) is not None]
+            if not timestamps:
                 continue
-            returns = log_returns(ticker_ts)
-            tickers_ts_with_returns.append({
-                "ticker": ticker_ts["ticker"],
-                **returns,
-                "cum_values": np.cumsum(returns["values"]).tolist(),
+            tickers_ts.append({
+                "ticker": ticker,
+                "timestamps": timestamps,
+                "values": [
+                    self.initial_capital * asset[ticker] / first_prices[ticker]
+                    for asset in assets
+                    if asset.get(ticker) is not None
+                ],
             })
-        tickers_ts = tickers_ts_with_returns
-
-        # Mean of per-ticker cumulative log returns, aligned by timestamp
-        mean_timestamps = sorted({ts for ticker_ts in tickers_ts for ts in ticker_ts["timestamps"]})
-        mean_values = []
-        for ts in mean_timestamps:
-            values_at_ts = [
-                ticker_ts["cum_values"][ticker_ts["timestamps"].index(ts)]
-                for ticker_ts in tickers_ts
-                if ts in ticker_ts["timestamps"]
-            ]
-            mean_values.append(sum(values_at_ts) / len(values_at_ts))
-
-        mean_pf = {
-            "timestamps": mean_timestamps,
-            "values": mean_values,
-        }
 
         fig = make_subplots(rows=1, cols=1, specs=[[{"secondary_y": True}]])
 
@@ -255,18 +308,18 @@ class Broker(ABC):
 
         fig.add_trace(
             go.Scatter(
-                x=list(mean_pf["timestamps"]),
-                y=list(mean_pf["values"]),
-                name="Mean portfolio value",
-                yaxis="y2",
+                x=asset_timestamps,
+                y=invested_capital_filled,
+                name="Invested capital",
+                yaxis="y1",
             )
         )
 
         fig.add_trace(
             go.Scatter(
-                x=list(invested_capital.keys()),
-                y=list(invested_capital.values()),
-                name="Invested capital",
+                x=list(equal_weight.keys()),
+                y=list(equal_weight.values()),
+                name="Equal-weight benchmark",
                 yaxis="y1",
             )
         )
@@ -275,40 +328,34 @@ class Broker(ABC):
             fig.add_trace(
                 go.Scatter(
                     x=ticker_ts["timestamps"],
-                    y=ticker_ts["cum_values"],
+                    y=ticker_ts["values"],
                     name=ticker_ts["ticker"],
-                    line={
-                        "dash": "dash"
-                    },
+                    line={"dash": "dash"},
                     yaxis="y2",
                 )
             )
 
         if benchmark is not None:
-            # 1. Convert benchmark from univariate timeseries (dict[datetime, float]) to multivariate timepoints (list[dict[str, datetime | float]])
-            benchmark = [{"timestamp": timestamp, "value": value} for timestamp, value in benchmark.items()]
-
-            # 2. Convert benchmark to dict[str, list[datetime, float]]
-            benchmark = {
-                "timestamps": [d["timestamp"] for d in benchmark],
-                "values": [d["value"] for d in benchmark],
-            }
-
-            benchmark = log_returns(benchmark)
-
-            fig.add_trace(
-                go.Scatter(
-                    x=list(benchmark["timestamps"]),
-                    y=list(benchmark["values"]),
-                    name="Benchmark",
-                    yaxis="y2",
+            sorted_benchmark = sorted(benchmark.items())
+            first_benchmark_value = sorted_benchmark[0][1]
+            if first_benchmark_value != 0:
+                fig.add_trace(
+                    go.Scatter(
+                        x=[timestamp for timestamp, _ in sorted_benchmark],
+                        y=[
+                            self.initial_capital * value / first_benchmark_value
+                            for _, value in sorted_benchmark
+                        ],
+                        name="Benchmark",
+                        yaxis="y1",
+                    )
                 )
-            )
 
         fig.update_layout(
             title="Portfolio value",
             xaxis_title="Timestamp",
-            yaxis_title="Portfolio value",
+            yaxis={"title": "Portfolio value (€)"},
+            yaxis2={"title": "Ticker buy-and-hold (€)", "overlaying": "y", "side": "right"},
         )
 
         fig.show()
