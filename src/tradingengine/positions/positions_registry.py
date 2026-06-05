@@ -125,12 +125,23 @@ class PositionsRegistry(list[Position]):
 
     @property
     def invested_capital(self) -> UnivariateTimeseries:
-        sorted_positions = self.sorted_by_timestamp
+        deltas_by_timestamp: dict[datetime, float] = {}
 
-        timestamps = sorted(list(set([position.open["timestamp"] for position in sorted_positions])))
-        values = np.cumsum(
-            [position.open["price"] * position.quantity for position in sorted_positions]
-        )
+        for position in self:
+            open_ts = position.open["timestamp"]
+            deltas_by_timestamp[open_ts] = (
+                deltas_by_timestamp.get(open_ts, 0)
+                + position.open["price"] * position.quantity
+            )
+            if position.status == PositionStatus.CLOSED and position.close is not None:
+                close_ts = position.close["timestamp"]
+                deltas_by_timestamp[close_ts] = (
+                    deltas_by_timestamp.get(close_ts, 0)
+                    - position.close["price"] * position.quantity
+                )
+
+        timestamps = sorted(deltas_by_timestamp.keys())
+        values = np.cumsum([deltas_by_timestamp[ts] for ts in timestamps])
 
         return {
             timestamp: value for timestamp, value in zip(timestamps, values)
