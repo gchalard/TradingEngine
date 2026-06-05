@@ -17,6 +17,7 @@ class Backtest(Broker):
     
     current_positions: Optional[dict[str, list[Position]]] = field(default=None, init=False)
     current_capital: float = field(init=False)
+    _cash_events: list[tuple[datetime, float]] = field(default_factory=list, init=False)
     verbose: bool = False
 
     fees: dict[Fees, float] = field(default_factory=dict)
@@ -46,7 +47,26 @@ class Backtest(Broker):
     def disconnect(self) -> None:
         print("Disconnected from backtest broker")
 
-    def _at_market(self, price: float, quantity: float, side: Side, timestamp: datetime, ticker: Optional[str] = "default") -> None:
+    def add_capital(self, amount: float, timestamp: datetime) -> None:
+        """Record a cash deposit (e.g. recurring investment) for portfolio history."""
+        self.current_capital += amount
+        self._cash_events.append((timestamp, amount))
+
+    def _record_cash_delta(self, timestamp: datetime, delta: float) -> None:
+        if delta != 0:
+            self._cash_events.append((timestamp, delta))
+
+    def _at_market(
+        self,
+        price: float,
+        quantity: float,
+        side: Side,
+        timestamp: datetime,
+        ticker: Optional[str] = "default",
+        *,
+        record_cash: bool = True,
+    ) -> None:
+        capital_before = self.current_capital
         if self.current_positions is None or (self.current_positions.get(ticker) is None or len(self.current_positions[ticker]) == 0):
             if self.current_positions is None:
                 self.current_positions = {
@@ -137,7 +157,11 @@ class Backtest(Broker):
                     side=Side.LONG if side == Side.SHORT else Side.SHORT,
                     timestamp=timestamp,
                     ticker=ticker,
+                    record_cash=False,
                 )
+
+        if record_cash:
+            self._record_cash_delta(timestamp, self.current_capital - capital_before)
 
 
 
