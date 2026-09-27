@@ -44,3 +44,7 @@ class Position:
             return 0
         assert self.close is not None
         return self.gross_proceeds - (self.close["fees"] + self.open["fees"])
+
+    def unrealized_gross_pnl(self, current_price: float) -> float:
+        side = 1 if self.side == Side.LONG else -1
+        return (current_price - self.open["price"]) * self.quantity * side
