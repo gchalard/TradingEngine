@@ -46,6 +46,15 @@ class Backtest(Broker):
     def disconnect(self) -> None:
         print("Disconnected from backtest broker")
 
+    def _close_position_at_market(self, position: Position, timestamp: datetime, price: float) -> None:
+        closing_price = self._compute_slippage(price)
+        position.close = PositionData(
+            price=closing_price,
+            fees=self._compute_fees(price=closing_price, quantity=position.quantity, type=Fees.TAKER),
+            timestamp=timestamp
+        )
+        position.status = PositionStatus.CLOSED
+
     def _at_market(
         self,
         price: float,
